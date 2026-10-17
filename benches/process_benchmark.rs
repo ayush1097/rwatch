@@ -1,20 +1,39 @@
-use std::time::Instant;
+use std::hint::black_box;
+use std::time::{Duration, Instant};
 
 use rwatch::process::collect_processes;
 
+const ITERATIONS: usize = 100;
+
 fn main() {
-    let start = Instant::now();
+    let mut total_time = Duration::ZERO;
+    let mut min_time = Duration::MAX;
+    let mut max_time = Duration::ZERO;
+    let mut total_processes = 0usize;
 
-    let processes = collect_processes();
+    for _ in 0..ITERATIONS {
+        let start = Instant::now();
 
-    let elapsed = start.elapsed();
+        let processes = black_box(collect_processes());
 
-    println!("Processes collected: {}", processes.len());
-    println!("Total scan time: {:?}", elapsed);
+        let elapsed = start.elapsed();
 
-    if !processes.is_empty() {
-        let average_time = elapsed.as_secs_f64() * 1000.0 / processes.len() as f64;
+        total_time += elapsed;
+        min_time = min_time.min(elapsed);
+        max_time = max_time.max(elapsed);
+        total_processes += processes.len();
 
-        println!("Average scan time per process: {:.4} ms", average_time);
+        black_box(processes);
     }
+
+    let average_time = total_time / ITERATIONS as u32;
+    let average_processes = total_processes as f64 / ITERATIONS as f64;
+
+    println!("=== RWatch Process Benchmark ===");
+    println!("Iterations: {ITERATIONS}");
+    println!("Average processes per scan: {average_processes:.2}");
+    println!("Total benchmark time: {total_time:?}");
+    println!("Average scan time: {average_time:?}");
+    println!("Minimum scan time: {min_time:?}");
+    println!("Maximum scan time: {max_time:?}");
 }

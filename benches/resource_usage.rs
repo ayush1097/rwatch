@@ -58,7 +58,14 @@ fn main() {
     match (start_ticks, end_ticks) {
         (Some(start), Some(end)) => {
             let ticks = end.saturating_sub(start);
-            let cpu_seconds = (ticks as f64) / 100.0;
+            let clock_ticks_per_second = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
+
+            if clock_ticks_per_second <= 0 {
+                println!("CPU clock-tick frequency unavailable");
+                return;
+            }
+
+            let cpu_seconds = (ticks as f64) / (clock_ticks_per_second as f64);
 
             let cpu_utilization = (cpu_seconds / elapsed.as_secs_f64()) * 100.0;
 
