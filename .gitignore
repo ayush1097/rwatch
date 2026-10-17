@@ -1,1 +1,13 @@
-/target
+# Rust build output
+/target/
+
+# Compiled Linux experiment binaries
+/cpu_tests
+/discover_processes
+/read_cpu_stat
+/read_meminfo
+/read_net_dev
+/snapshot.json
+
+# Build artifacts from standalone experiments
+/experiments/*/target/

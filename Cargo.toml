@@ -1,6 +1,60 @@
 [package]
+
 name = "rwatch"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+
+nix = { version = "0.31.3", features = ["signal", "process"] }
+
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tokio-stream = "0.1"
+
+toml = "1.1.6"
+humantime = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+
+ratatui = "0.29"
+crossterm = "0.28"
+
+axum = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+libc = "0.2.190"
+
+[[bench]]
+name = "process_benchmark"
+path = "benches/process_benchmark.rs"
+harness = false
+
+[[bench]]
+name = "resource_usage"
+path = "benches/resource_usage.rs"
+harness = false
+
+[[bench]]
+name = "network_parser"
+path = "benches/network_parser.rs"
+harness = false
+
+[[bench]]
+name = "network_collection"
+path = "benches/network_collection.rs"
+harness = false
+
+[[bench]]
+name = "allocation_benchmark"
+path = "benches/allocation_benchmark.rs"
+harness = false
+
+
+[[bin]]
+name = "backpressure_lab"
+path = "labs/backpressure/main.rs"
+
+[[bin]]
+name = "priority_channels"
+path = "labs/event_prioritization/priority_channels.rs"
