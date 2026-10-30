@@ -41,6 +41,29 @@ collecting, processing, and presenting this information.
 - Configurable monitoring intervals and logging.
 - Explicit process-control operations with safety checks.
 
+## Screenshots
+
+### System Overview
+
+The main dashboard displays CPU, memory, disk, network,
+TCP/UDP sockets, and cgroup information.
+
+![RWatch Overview](assets/screenshots/overview.png)
+
+### Process Monitoring
+
+Monitor running processes with CPU usage, memory consumption,
+thread count, and process state.
+
+![RWatch Processes](assets/screenshots/processes.png)
+
+### Process Details
+
+Inspect individual processes, including resource limits
+and namespace information.
+
+![RWatch Process Details](assets/screenshots/process-details.png)
+
 ## Architecture
 
 RWatch separates data collection from presentation.
