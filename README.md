@@ -95,6 +95,48 @@ different capabilities.
 
 ## Build
 
+### Requirements
+
+* Linux or WSL2 with a supported Linux environment.
+* Rust toolchain and Cargo.
+* The dependencies specified in `Cargo.toml`.
+
+RWatch uses Linux-specific interfaces, including `/proc`, `/sys`, and Linux process APIs. Native Windows and macOS execution are not supported.
+
+### Clone and build
+
+Clone the repository:
+
+```bash
+git clone <repository-url>
+cd rwatch
+```
+
+Build the debug binary:
+
+```bash
+cargo build --bin rwatch
+```
+
+Build an optimized release binary:
+
+```bash
+cargo build --release --bin rwatch
+```
+
+Run the test suite:
+
+```bash
+cargo test --all-targets --all-features
+```
+
+Check formatting and linting:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+```
+
 Clone the repository and enter the project directory:
 
 ```bash
@@ -187,17 +229,28 @@ Some Linux information may be unavailable because of permissions or kernel confi
 
 ## Testing
 
-Run the test suite:
+## Continuous Integration
+
+RWatch uses GitHub Actions to automate code quality checks on pushes and pull requests.
+
+The CI workflow checks:
+
+* Rust formatting with `cargo fmt`.
+* Code quality with Clippy.
+* Tests across available targets and features.
+* Documentation builds with warnings treated as errors.
+* Optimized release builds.
+
+Run the same checks locally before submitting changes:
 
 ```bash
-cargo test
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-targets --all-features
+cargo doc --no-deps --all-features
+cargo build --release --bin rwatch
 ```
 
-Check Rust formatting:
-
-```bash
-cargo fmt --check
-```
 
 ## Security
 

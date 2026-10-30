@@ -62,8 +62,10 @@ impl fmt::Display for TcpState {
     }
 }
 
-pub fn read_tcp_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> Vec<TcpRow> {
-    let content = fs::read_to_string("/proc/net/tcp").expect("Failed to read /proc/net/tcp");
+pub fn read_tcp_rows(
+    owners: &HashMap<u64, Vec<SocketOwner>>,
+) -> std::io::Result<Vec<TcpRow>> {
+    let content = fs::read_to_string("/proc/net/tcp")?;
 
     let mut tcp_rows = Vec::new();
 
@@ -102,13 +104,15 @@ pub fn read_tcp_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> Vec<TcpRow> {
         });
     }
 
-    tcp_rows
+    Ok(tcp_rows)
 }
 //=========================================
 // read tcp6 rows
 //=========================================
-pub fn read_tcp6_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> Vec<TcpRow> {
-    let content = fs::read_to_string("/proc/net/tcp6").expect("Failed to read /proc/net/tcp6");
+pub fn read_tcp6_rows(
+    owners: &HashMap<u64, Vec<SocketOwner>>,
+) -> std::io::Result<Vec<TcpRow>> {
+    let content = fs::read_to_string("/proc/net/tcp6")?;
 
     let mut tcp6_rows = Vec::new();
 
@@ -138,8 +142,9 @@ pub fn read_tcp6_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> Vec<TcpRow> {
         });
     }
 
-    tcp6_rows
+    Ok(tcp6_rows)
 }
+
 pub fn find_tcp_connections(rows: &[TcpRow]) -> Vec<TcpConnection> {
     let mut seen_connections: HashSet<String> = HashSet::new();
     let mut connections: Vec<TcpConnection> = Vec::new();

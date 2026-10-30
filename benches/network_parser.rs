@@ -10,7 +10,7 @@ fn main() {
     let start = Instant::now();
 
     for _ in 0..ITERATIONS {
-        black_box(parse_endpoint(black_box("0100007F:1F90")));
+        black_box(parse_endpoint(black_box("0100007F:1F90")).unwrap());
     }
 
     let ipv4_elapsed = start.elapsed();
@@ -19,9 +19,7 @@ fn main() {
     let start = Instant::now();
 
     for _ in 0..ITERATIONS {
-        black_box(parse_ipv6_endpoint(black_box(
-            "00000000000000000000000001000000:1F90",
-        )));
+        black_box(parse_ipv6_endpoint(black_box("00000000000000000000000001000000:1F90")).unwrap());
     }
 
     let ipv6_elapsed = start.elapsed();

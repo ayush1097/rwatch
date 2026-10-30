@@ -54,27 +54,96 @@ enum MetricEvent {
 
 #[tokio::main]
 async fn main() {
-    let config = config::Config::load().expect("Failed to load configuration from rwatch.toml");
-
-    let process_interval = config
-        .process_duration()
-        .expect("Invalid process_interval in rwatch.toml");
-
-    let network_interval = config
-        .network_duration()
-        .expect("Invalid network_interval in rwatch.toml");
-
-    let refresh_interval = config
-        .refresh_duration()
-        .expect("Invalid refresh_interval in rwatch.toml");
     let args: Vec<String> = std::env::args().collect();
 
+    if args.iter().any(|arg| arg == "--help" || arg == "-h") {
+        println!(
+            "RWatch - Linux system monitoring tool
+
+USAGE:
+    rwatch [OPTIONS]
+    rwatch snapshot --json
+
+OPTIONS:
+    -h, --help       Print help information
+    -V, --version    Print version information
+
+COMMANDS:
+    snapshot --json  Collect a system snapshot and output JSON
+
+Run without arguments to start the interactive TUI."
+        );
+        return;
+    }
+
+    if args.iter().any(|arg| arg == "--version" || arg == "-V") {
+        println!("rwatch {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
+    if args.len() > 1 && !(args.len() == 3 && args[1] == "snapshot" && args[2] == "--json") {
+        eprintln!("Error: invalid command or arguments.\n");
+        eprintln!("Usage:");
+        eprintln!("  rwatch");
+        eprintln!("  rwatch snapshot --json");
+        eprintln!("  rwatch --help");
+        eprintln!("  rwatch --version");
+        std::process::exit(2);
+    }
+
+    let config = match config::Config::load() {
+        Ok(config) => config,
+        Err(error) => {
+            eprintln!("Error: failed to load rwatch.toml: {error}");
+            std::process::exit(1);
+        }
+    };
+
+    let process_interval = match config.process_duration() {
+        Ok(duration) => duration,
+        Err(error) => {
+            eprintln!("Error: invalid process_interval in rwatch.toml: {error}");
+            std::process::exit(1);
+        }
+    };
+
+    let network_interval = match config.network_duration() {
+        Ok(duration) => duration,
+        Err(error) => {
+            eprintln!("Error: invalid network_interval in rwatch.toml: {error}");
+            std::process::exit(1);
+        }
+    };
+
+    let refresh_interval = match config.refresh_duration() {
+        Ok(duration) => duration,
+        Err(error) => {
+            eprintln!("Error: invalid refresh_interval in rwatch.toml: {error}");
+            std::process::exit(1);
+        }
+    };
+
     if args.len() >= 3 && args[1] == "snapshot" && args[2] == "--json" {
-        let memory = memory::read_memory_info().ok();
-        let mut cpu_monitor = CpuMonitor::new().ok();
-        let cpu = cpu_monitor
-            .as_mut()
-            .and_then(|monitor| monitor.sample().ok());
+        let memory = match memory::read_memory_info() {
+            Ok(info) => Some(info),
+            Err(error) => {
+                eprintln!("Warning: failed to collect memory information: {error}");
+                None
+            }
+        };
+        let cpu = match CpuMonitor::new() {
+            Ok(mut monitor) => match monitor.sample() {
+                Ok(usage) => Some(usage),
+                Err(error) => {
+                    eprintln!("Warning: failed to collect CPU usage: {error:?}");
+                    None
+                }
+            },
+            Err(error) => {
+                eprintln!("Warning: failed to initialize CPU monitor: {error:?}");
+                None
+            }
+        };
         let mut disk_monitor = DiskMonitor::new();
         let disk = disk_monitor.sample();
 
@@ -84,23 +153,47 @@ async fn main() {
         let mut process_monitor = process::ProcessMonitor::new();
         let processes = process_monitor.sample();
 
-        let cgroups = cgroup::discover_cgroups()
-            .map(|(cgroups, _, _)| cgroups)
-            .unwrap_or_default();
+        let cgroups = match cgroup::discover_cgroups() {
+            Ok((cgroups, _, _)) => cgroups,
+            Err(error) => {
+                eprintln!("Warning: failed to discover cgroups: {error:?}");
+                Vec::new()
+            }
+        };
 
         let owners = socket::build_socket_owners();
 
-        let mut tcp_rows = tcp::read_tcp_rows(&owners);
-        let tcp6_rows = tcp::read_tcp6_rows(&owners);
+        let mut tcp_rows = match tcp::read_tcp_rows(&owners) {
+            Ok(rows) => rows,
+            Err(error) => {
+                eprintln!("Warning: failed to read TCP connections: {error}");
+                Vec::new()
+            }
+        };
 
-        tcp_rows.extend(tcp6_rows);
+        match tcp::read_tcp6_rows(&owners) {
+            Ok(rows) => tcp_rows.extend(rows),
+            Err(error) => {
+                eprintln!("Warning: failed to read IPv6 TCP connections: {error}");
+            }
+        }
 
         let tcp_connections = tcp::find_tcp_connections(&tcp_rows);
 
-        let mut udp_rows = udp::read_udp_rows(&owners);
-        let udp6_rows = udp::read_udp6_rows(&owners);
+        let mut udp_rows = match udp::read_udp_rows(&owners) {
+            Ok(rows) => rows,
+            Err(error) => {
+                eprintln!("Warning: failed to read IPv4 UDP sockets: {error}");
+                Vec::new()
+            }
+        };
 
-        udp_rows.extend(udp6_rows);
+        match udp::read_udp6_rows(&owners) {
+            Ok(rows) => udp_rows.extend(rows),
+            Err(error) => {
+                eprintln!("Warning: failed to read IPv6 UDP sockets: {error}");
+            }
+        }
 
         let state = state::RWatchState {
             cpu,
@@ -507,29 +600,36 @@ async fn main() {
 
         loop {
             tokio::select! {
-                _ = interval.tick() => {
-                    let owners = socket::build_socket_owners();
-                    let rows = tcp::read_tcp_rows(&owners);
-                    let connections = tcp::find_tcp_connections(&rows);
+                            _ = interval.tick() => {
+                                let owners = socket::build_socket_owners();
 
-
-                        if tcp_sender
-                         .send(MetricEvent::Tcp {
-                         rows,
-                         connections,
-                        })
-                        .await
-                       .is_err()
-                        {
-                        break;
-                        }
+            let rows = match tcp::read_tcp_rows(&owners) {
+                Ok(rows) => rows,
+                Err(error) => {
+                    tracing::warn!(%error, "failed to read TCP connections for TUI");
+                    Vec::new()
                 }
+            };
 
-                _ = tcp_shutdown.cancelled() => {
-                    tracing::info!(collector = "tcp", "collector shutting down");
-                    break;
-                }
+            let connections = tcp::find_tcp_connections(&rows);
+
+            if tcp_sender
+                .send(MetricEvent::Tcp {
+                    rows,
+                    connections,
+                })
+                .await
+                .is_err()
+            {
+                break;
             }
+                            }
+
+                            _ = tcp_shutdown.cancelled() => {
+                                tracing::info!(collector = "tcp", "collector shutting down");
+                                break;
+                            }
+                        }
         }
     });
     ///////////////////////
@@ -545,32 +645,41 @@ async fn main() {
 
         loop {
             tokio::select! {
-                _ = interval.tick() => {
-                    let owners = socket::build_socket_owners();
+                            _ = interval.tick() => {
+                                let owners = socket::build_socket_owners();
 
-                    let mut rows = udp::read_udp_rows(&owners);
-
-                    let rows6 = udp::read_udp6_rows(&owners);
-
-                    rows.extend(rows6);
-
-                    if udp_sender
-                        .send(MetricEvent::Udp(rows))
-                        .await
-                        .is_err()
-                    {
-                        break;
-                    }
+            let mut rows = match udp::read_udp_rows(&owners) {
+                Ok(rows) => rows,
+                Err(error) => {
+                    tracing::warn!(%error, "failed to read IPv4 UDP sockets for TUI");
+                    Vec::new()
                 }
+            };
 
-                _ = udp_shutdown.cancelled() => {
-                    tracing::info!(
-                        collector = "udp",
-                        "collector shutting down"
-                    );
-                    break;
+            match udp::read_udp6_rows(&owners) {
+                Ok(rows6) => rows.extend(rows6),
+                Err(error) => {
+                    tracing::warn!(%error, "failed to read IPv6 UDP sockets for TUI");
                 }
             }
+
+            if udp_sender
+                .send(MetricEvent::Udp(rows))
+                .await
+                .is_err()
+            {
+                break;
+            }
+                            }
+
+                            _ = udp_shutdown.cancelled() => {
+                                tracing::info!(
+                                    collector = "udp",
+                                    "collector shutting down"
+                                );
+                                break;
+                            }
+                        }
         }
     });
 

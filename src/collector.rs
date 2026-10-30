@@ -382,21 +382,35 @@ pub fn spawn_tcp_collector(
         let mut ticker = tokio::time::interval(interval);
         loop {
             tokio::select! {
-                _ = ticker.tick() => {
-                    let owners = socket::build_socket_owners();
-                    let mut rows = tcp::read_tcp_rows(&owners);
-                    let rows6 = tcp::read_tcp6_rows(&owners);
-                    rows.extend(rows6);
-                    let connections = tcp::find_tcp_connections(&rows);
-                    if sender.send(MetricEvent::Tcp { rows, connections }).await.is_err() {
-                        break;
-                    }
+                            _ = ticker.tick() => {
+                                let owners = socket::build_socket_owners();
+
+            let mut rows = match tcp::read_tcp_rows(&owners) {
+                Ok(rows) => rows,
+                Err(error) => {
+                    tracing::warn!(%error, "failed to read IPv4 TCP connections");
+                    Vec::new()
                 }
-                _ = shutdown.cancelled() => {
-                    tracing::info!(collector = "tcp", "collector shutting down");
-                    break;
+            };
+
+            match tcp::read_tcp6_rows(&owners) {
+                Ok(rows6) => rows.extend(rows6),
+                Err(error) => {
+                    tracing::warn!(%error, "failed to read IPv6 TCP connections");
                 }
             }
+
+            let connections = tcp::find_tcp_connections(&rows);
+
+            if sender.send(MetricEvent::Tcp { rows, connections }).await.is_err() {
+                break;
+            }
+                            }
+                            _ = shutdown.cancelled() => {
+                                tracing::info!(collector = "tcp", "collector shutting down");
+                                break;
+                            }
+                        }
         }
     })
 }
@@ -411,20 +425,33 @@ pub fn spawn_udp_collector(
         let mut ticker = tokio::time::interval(interval);
         loop {
             tokio::select! {
-                _ = ticker.tick() => {
-                    let owners = socket::build_socket_owners();
-                    let mut rows = udp::read_udp_rows(&owners);
-                    let rows6 = udp::read_udp6_rows(&owners);
-                    rows.extend(rows6);
-                    if sender.send(MetricEvent::Udp(rows)).await.is_err() {
-                        break;
-                    }
+                            _ = ticker.tick() => {
+                                let owners = socket::build_socket_owners();
+
+            let mut rows = match udp::read_udp_rows(&owners) {
+                Ok(rows) => rows,
+                Err(error) => {
+                    tracing::warn!(%error, "failed to read IPv4 UDP sockets");
+                    Vec::new()
                 }
-                _ = shutdown.cancelled() => {
-                    tracing::info!(collector = "udp", "collector shutting down");
-                    break;
+            };
+
+            match udp::read_udp6_rows(&owners) {
+                Ok(rows6) => rows.extend(rows6),
+                Err(error) => {
+                    tracing::warn!(%error, "failed to read IPv6 UDP sockets");
                 }
             }
+
+            if sender.send(MetricEvent::Udp(rows)).await.is_err() {
+                break;
+            }
+                            }
+                            _ = shutdown.cancelled() => {
+                                tracing::info!(collector = "udp", "collector shutting down");
+                                break;
+                            }
+                        }
         }
     })
 }

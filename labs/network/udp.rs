@@ -20,8 +20,10 @@ pub struct UdpRow {
     drops: u64,
     owners: Vec<SocketOwner>,
 }
-pub fn read_udp_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> Vec<UdpRow> {
-    let content = fs::read_to_string("/proc/net/udp").expect("Failed to read /proc/net/udp");
+pub fn read_udp_rows(
+    owners: &HashMap<u64, Vec<SocketOwner>>,
+) -> std::io::Result<Vec<UdpRow>> {
+    let content = fs::read_to_string("/proc/net/udp")?;
 
     let mut udp_rows = Vec::new();
 
@@ -59,13 +61,13 @@ pub fn read_udp_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> Vec<UdpRow> {
         });
     }
 
-    udp_rows
+    Ok(udp_rows)
 }
 // ==========================================
 // read udp_rows_ipv6
 // ==========================================
-pub  fn read_udp6_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> Vec<UdpRow> {
-    let content = fs::read_to_string("/proc/net/udp6").expect("Failed to read /proc/net/udp6");
+pub  fn read_udp6_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> std::io::Result<Vec<UdpRow>> {
+    let content = fs::read_to_string("/proc/net/udp6")?;
 
     let mut udp_rows = Vec::new();
 
@@ -103,7 +105,7 @@ pub  fn read_udp6_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> Vec<UdpRow> {
         });
     }
 
-    udp_rows
+    Ok(udp_rows)
 }
 pub  fn print_udp_row(row: &UdpRow) {
     println!(

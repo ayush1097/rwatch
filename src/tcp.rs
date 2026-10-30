@@ -59,28 +59,48 @@ impl fmt::Display for TcpState {
     }
 }
 
-pub fn read_tcp_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> Vec<TcpRow> {
-    let content = fs::read_to_string("/proc/net/tcp").expect("Failed to read /proc/net/tcp");
+pub fn read_tcp_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> std::io::Result<Vec<TcpRow>> {
+    let content = fs::read_to_string("/proc/net/tcp")?;
 
     let mut tcp_rows = Vec::new();
 
     for line in content.lines().skip(1) {
         let fields: Vec<&str> = line.split_whitespace().collect();
 
-        let local = fields[1];
-        let remote = fields[2];
+        if fields.len() < 10 {
+            tracing::warn!(
+                field_count = fields.len(),
+                "skipping malformed TCP entry with insufficient fields"
+            );
+            continue;
+        }
 
-        // Parse local endpoint
-        let (local_ip, local_port) = parse_endpoint(local);
+        let (local_ip, local_port) = match parse_endpoint(fields[1]) {
+            Ok(endpoint) => endpoint,
+            Err(error) => {
+                tracing::warn!(%error, "skipping TCP entry with invalid local endpoint");
+                continue;
+            }
+        };
 
-        // Parse remote endpoint
-        let (remote_ip, remote_port) = parse_endpoint(remote);
-
+        let (remote_ip, remote_port) = match parse_endpoint(fields[2]) {
+            Ok(endpoint) => endpoint,
+            Err(error) => {
+                tracing::warn!(%error, "skipping TCP entry with invalid remote endpoint");
+                continue;
+            }
+        };
         // Parse TCP state
         let state = parse_tcp_state(fields[3]);
 
         // Get socket inode
-        let inode: u64 = fields[9].parse().expect("Invalid inode");
+        let inode: u64 = match fields.get(9).and_then(|field| field.parse::<u64>().ok()) {
+            Some(inode) => inode,
+            None => {
+                tracing::warn!("skipping TCP entry with invalid or missing inode");
+                continue;
+            }
+        };
 
         // Find PID using socket inode
         let socket_owners = match owners.get(&inode) {
@@ -99,23 +119,47 @@ pub fn read_tcp_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> Vec<TcpRow> {
         });
     }
 
-    tcp_rows
+    Ok(tcp_rows)
 }
-pub fn read_tcp6_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> Vec<TcpRow> {
-    let content = fs::read_to_string("/proc/net/tcp6").expect("Failed to read /proc/net/tcp6");
+pub fn read_tcp6_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> std::io::Result<Vec<TcpRow>> {
+    let content = fs::read_to_string("/proc/net/tcp6")?;
 
     let mut tcp6_rows = Vec::new();
 
     for line in content.lines().skip(1) {
         let fields: Vec<&str> = line.split_whitespace().collect();
+        if fields.len() < 10 {
+            tracing::warn!(
+                field_count = fields.len(),
+                "skipping malformed TCP entry with insufficient fields"
+            );
+            continue;
+        }
+        let (local_ip, local_port) = match parse_ipv6_endpoint(fields[1]) {
+            Ok(endpoint) => endpoint,
+            Err(error) => {
+                tracing::warn!(%error, "skipping TCP6 entry with invalid local endpoint");
+                continue;
+            }
+        };
 
-        let (local_ip, local_port) = parse_ipv6_endpoint(fields[1]);
-
-        let (remote_ip, remote_port) = parse_ipv6_endpoint(fields[2]);
+        let (remote_ip, remote_port) = match parse_ipv6_endpoint(fields[2]) {
+            Ok(endpoint) => endpoint,
+            Err(error) => {
+                tracing::warn!(%error, "skipping TCP6 entry with invalid remote endpoint");
+                continue;
+            }
+        };
 
         let state = parse_tcp_state(fields[3]);
 
-        let inode: u64 = fields[9].parse().expect("Invalid inode");
+        let inode: u64 = match fields.get(9).and_then(|field| field.parse::<u64>().ok()) {
+            Some(inode) => inode,
+            None => {
+                tracing::warn!("skipping TCP6 entry with invalid or missing inode");
+                continue;
+            }
+        };
         let socket_owners = match owners.get(&inode) {
             Some(owners) => owners.clone(),
             None => Vec::new(),
@@ -132,7 +176,7 @@ pub fn read_tcp6_rows(owners: &HashMap<u64, Vec<SocketOwner>>) -> Vec<TcpRow> {
         });
     }
 
-    tcp6_rows
+    Ok(tcp6_rows)
 }
 
 pub fn find_tcp_connections(rows: &[TcpRow]) -> Vec<TcpConnection> {
@@ -294,6 +338,12 @@ mod tests {
         assert!(!is_reverse(&row_a, &row_mismatched));
     }
 
+    #[test]
+    fn unknown_tcp_state_does_not_panic() {
+        assert_eq!(parse_tcp_state("FF"), TcpState::Unknown);
+        assert_eq!(parse_tcp_state("invalid"), TcpState::Unknown);
+        assert_eq!(parse_tcp_state(""), TcpState::Unknown);
+    }
     #[test]
     fn find_tcp_connections_pairs_established_sockets() {
         let row_a = TcpRow {

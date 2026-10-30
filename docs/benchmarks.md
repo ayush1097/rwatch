@@ -144,3 +144,38 @@ Both implementations still allocate an owned String for the interface name.
 Results are specific to the test input and environment.
 Allocation counts measure successful allocations and reallocations,
 not allocated bytes or peak memory usage.
+
+
+## Live Application Resource Observations
+
+### Environment
+
+* Platform: Linux on WSL2
+* Application: RWatch release binary
+* Process ID during measurement: 10121
+* Measurement duration: approximately 30–60 seconds per run
+
+### Observed Memory Usage
+
+| Run                   | Average sampled RSS | Peak sampled RSS |
+| --------------------- | ------------------: | ---------------: |
+| Earlier observation 1 |            6.97 MiB |         7.07 MiB |
+| Earlier observation 2 |            7.90 MiB |         8.24 MiB |
+| Later observation     |            9.50 MiB |         9.62 MiB |
+| Later observation     |            9.83 MiB |         9.87 MiB |
+
+### Observed CPU Usage
+
+CPU samples were generally low, usually between 0% and 2% of one logical CPU, with occasional brief readings reaching 9%.
+
+### HTTP API Smoke Test
+
+A scripted test completed 900 HTTP requests across the `/api/system`, `/api/processes`, and `/api/network` endpoints without reporting a failed request.
+
+### Limitations
+
+These observations come from separate application runs and are not a controlled performance comparison. The available results do not establish why RSS differed between runs.
+
+The resource measurements and HTTP requests were not confirmed to have run concurrently. Therefore, the results must not be interpreted as resource consumption under HTTP load.
+
+CPU readings are sampled observations, not a complete CPU profile. These results are specific to the observed WSL2 environment and workload.

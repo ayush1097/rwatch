@@ -18,22 +18,32 @@ pub fn create_router(state: Arc<RwLock<state::RWatchState>>) -> Router {
 }
 
 pub async fn run_server(state: Arc<RwLock<state::RWatchState>>) {
-    println!("ENTERED run_server");
     let app = create_router(state);
-    println!("ABOUT TO BIND");
 
-    let listener = match tokio::net::TcpListener::bind("0.0.0.0:3000").await {
-        Ok(listener) => listener,
-        Err(error) => {
-            eprintln!("Failed to bind API server: {error}");
-            return;
-        }
-    };
+let listener = match tokio::net::TcpListener::bind("0.0.0.0:3000").await {
+    Ok(listener) => listener,
+    Err(error) => {
+        tracing::error!(%error, "failed to bind HTTP API server");
+        return;
+    }
+};
 
-    println!("HTTP server running on http://127.0.0.1:3000");
-
-    axum::serve(listener, app).await.unwrap();
+match listener.local_addr() {
+    Ok(address) => {
+        tracing::info!(%address, "HTTP API server listening");
+    }
+    Err(error) => {
+        tracing::warn!(%error, "could not determine HTTP API server address");
+    }
 }
+
+if let Err(error) = axum::serve(listener, app).await {
+    tracing::error!(%error, "HTTP API server stopped with an error");
+}
+
+}
+
+
 async fn get_processes(
     axum::extract::State(state): axum::extract::State<Arc<RwLock<state::RWatchState>>>,
 ) -> axum::Json<serde_json::Value> {
