@@ -20,29 +20,27 @@ pub fn create_router(state: Arc<RwLock<state::RWatchState>>) -> Router {
 pub async fn run_server(state: Arc<RwLock<state::RWatchState>>) {
     let app = create_router(state);
 
-let listener = match tokio::net::TcpListener::bind("0.0.0.0:3000").await {
-    Ok(listener) => listener,
-    Err(error) => {
-        tracing::error!(%error, "failed to bind HTTP API server");
-        return;
-    }
-};
+    let listener = match tokio::net::TcpListener::bind("0.0.0.0:3000").await {
+        Ok(listener) => listener,
+        Err(error) => {
+            tracing::error!(%error, "failed to bind HTTP API server");
+            return;
+        }
+    };
 
-match listener.local_addr() {
-    Ok(address) => {
-        tracing::info!(%address, "HTTP API server listening");
+    match listener.local_addr() {
+        Ok(address) => {
+            tracing::info!(%address, "HTTP API server listening");
+        }
+        Err(error) => {
+            tracing::warn!(%error, "could not determine HTTP API server address");
+        }
     }
-    Err(error) => {
-        tracing::warn!(%error, "could not determine HTTP API server address");
+
+    if let Err(error) = axum::serve(listener, app).await {
+        tracing::error!(%error, "HTTP API server stopped with an error");
     }
 }
-
-if let Err(error) = axum::serve(listener, app).await {
-    tracing::error!(%error, "HTTP API server stopped with an error");
-}
-
-}
-
 
 async fn get_processes(
     axum::extract::State(state): axum::extract::State<Arc<RwLock<state::RWatchState>>>,
