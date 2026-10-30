@@ -32,7 +32,8 @@ pub fn parse_ipv6_endpoint(endpoint: &str) -> Result<(String, u16), &'static str
 
     // /proc/net/tcp6 and /proc/net/udp6 store each 32-bit
     // address word in little-endian byte order.
-    for chunk in bytes.chunks_exact_mut(4) {
+    let (chunks, _) = bytes.as_chunks_mut::<4>();
+    for chunk in chunks {
         chunk.reverse();
     }
 

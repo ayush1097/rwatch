@@ -340,7 +340,8 @@ pub async fn run(
                             }
 
                             ProcessSort::Memory => {
-                                sorted_processes.sort_by(|a, b| b.4.cmp(&a.4));
+                                sorted_processes
+                                    .sort_by_key(|process| std::cmp::Reverse(process.4));
                             }
                         }
 
@@ -704,7 +705,7 @@ pub async fn run(
                                 }
 
                                 ProcessSort::Memory => {
-                                    processes.sort_by(|a, b| b.4.cmp(&a.4));
+                                    processes.sort_by_key(|process| std::cmp::Reverse(process.4));
                                 }
                             }
 
